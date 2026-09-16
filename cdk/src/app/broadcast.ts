@@ -1,4 +1,4 @@
-import { leave, type Room } from "../domain/room";
+import { leave, type Participant, type Room } from "../domain/room";
 import type { ErrorCode, ServerMessage } from "../protocol/messages";
 import type { AppContext } from "./ports";
 import { toSnapshot } from "./snapshot";
@@ -7,14 +7,14 @@ const sendToAll = async (
     ctx: AppContext,
     room: Room,
     message: ServerMessage,
-): Promise<string[]> => {
+): Promise<Participant[]> => {
     const results = await Promise.all(
         room.participants.map(async (p) => ({
-            clientId: p.clientId,
+            participant: p,
             status: await ctx.broadcaster.send(p.connectionId, message),
         })),
     );
-    return results.filter((r) => r.status === "gone").map((r) => r.clientId);
+    return results.filter((r) => r.status === "gone").map((r) => r.participant);
 };
 
 const roomMessage = (ctx: AppContext, room: Room): ServerMessage => ({
@@ -30,9 +30,13 @@ export const broadcastRoom = async (
     const gone = await sendToAll(ctx, room, roomMessage(ctx, room));
     if (gone.length === 0) return room;
     let cleaned = room;
-    for (const clientId of gone) {
-        cleaned = leave(cleaned, clientId);
-        await ctx.repo.deleteParticipant(room.meta.id, clientId);
+    for (const p of gone) {
+        cleaned = leave(cleaned, p.clientId);
+        await ctx.repo.deleteParticipant(
+            room.meta.id,
+            p.clientId,
+            p.connectionId,
+        );
     }
     if (cleaned.participants.length === 0) {
         await ctx.repo.deleteRoom(room.meta.id);

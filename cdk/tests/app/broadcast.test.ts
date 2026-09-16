@@ -62,6 +62,40 @@ describe("broadcastRoom", () => {
         ).toEqual(["a"]);
     });
 
+    it("keeps a participant that reconnected under a newer connectionId", async () => {
+        const repo = new InMemoryRoomRepository();
+        const broadcaster = new FakeBroadcaster();
+        broadcaster.gone.add("cb-old");
+        const room = join(
+            join(
+                createRoom("r1", 0),
+                { clientId: "a", connectionId: "ca", name: "A" },
+                0,
+            ),
+            { clientId: "b", connectionId: "cb-old", name: "B" },
+            0,
+        );
+        await persistRoom(repo, null, room);
+        // B reconnected after this room was loaded: the stored row is newer.
+        await repo.saveParticipant("r1", {
+            clientId: "b",
+            connectionId: "cb-new",
+            name: "B",
+            vote: null,
+            joinedAt: 0,
+        });
+
+        const result = await broadcastRoom(
+            { repo, broadcaster, now: () => 0 },
+            room,
+        );
+
+        expect(result.participants.map((p) => p.clientId)).toEqual(["a"]);
+        expect(
+            (await repo.getRoom("r1"))?.participants.map((p) => p.connectionId),
+        ).toEqual(["ca", "cb-new"]);
+    });
+
     it("sendError targets one connection", async () => {
         const broadcaster = new FakeBroadcaster();
         await sendError(

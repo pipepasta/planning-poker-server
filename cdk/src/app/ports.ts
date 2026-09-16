@@ -10,7 +10,12 @@ export interface RoomRepository {
     getRoom(roomId: string): Promise<Room | null>;
     saveMeta(meta: RoomMeta): Promise<void>;
     saveParticipant(roomId: string, participant: Participant): Promise<void>;
-    deleteParticipant(roomId: string, clientId: string): Promise<void>;
+    /** Deletes the row only when `expectedConnectionId` matches the stored one. */
+    deleteParticipant(
+        roomId: string,
+        clientId: string,
+        expectedConnectionId?: string,
+    ): Promise<void>;
     deleteRoom(roomId: string): Promise<void>;
     findMemberships(clientId: string): Promise<Membership[]>;
 }

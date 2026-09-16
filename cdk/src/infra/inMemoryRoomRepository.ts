@@ -40,9 +40,20 @@ export class InMemoryRoomRepository implements RoomRepository {
         });
     }
 
-    async deleteParticipant(roomId: string, clientId: string): Promise<void> {
+    async deleteParticipant(
+        roomId: string,
+        clientId: string,
+        expectedConnectionId?: string,
+    ): Promise<void> {
         const room = this.rooms.get(roomId);
         if (!room) return;
+        const target = room.participants.find((p) => p.clientId === clientId);
+        if (!target) return;
+        if (
+            expectedConnectionId !== undefined &&
+            target.connectionId !== expectedConnectionId
+        )
+            return;
         this.rooms.set(roomId, {
             ...room,
             participants: room.participants.filter(

@@ -31,8 +31,12 @@ export const persistRoom = async (
         }
     }
     const afterIds = new Set(after.participants.map((p) => p.clientId));
-    for (const clientId of beforeById.keys()) {
+    for (const [clientId, prev] of beforeById) {
         if (!afterIds.has(clientId))
-            await repo.deleteParticipant(after.meta.id, clientId);
+            await repo.deleteParticipant(
+                after.meta.id,
+                clientId,
+                prev.connectionId,
+            );
     }
 };

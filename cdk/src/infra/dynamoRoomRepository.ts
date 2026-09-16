@@ -23,6 +23,11 @@ const num = (v: unknown, fallback = 0): number =>
 const str = (v: unknown, fallback = ""): string =>
     typeof v === "string" ? v : fallback;
 
+const isConditionalCheckFailed = (error: unknown): boolean =>
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: unknown }).name === "ConditionalCheckFailedException";
+
 const toMeta = (roomId: string, item: Item): RoomMeta => ({
     id: roomId,
     deckId: isDeckId(item.deckId) ? item.deckId : "fibonacci",
@@ -112,13 +117,30 @@ export class DynamoRoomRepository implements RoomRepository {
         );
     }
 
-    async deleteParticipant(roomId: string, clientId: string): Promise<void> {
-        await this.client.send(
-            new DeleteCommand({
-                TableName: this.tableName,
-                Key: { roomId, clientId },
-            }),
-        );
+    async deleteParticipant(
+        roomId: string,
+        clientId: string,
+        expectedConnectionId?: string,
+    ): Promise<void> {
+        const condition =
+            expectedConnectionId === undefined
+                ? {}
+                : {
+                      ConditionExpression: "connectionId = :c",
+                      ExpressionAttributeValues: { ":c": expectedConnectionId },
+                  };
+        try {
+            await this.client.send(
+                new DeleteCommand({
+                    TableName: this.tableName,
+                    Key: { roomId, clientId },
+                    ...condition,
+                }),
+            );
+        } catch (error) {
+            // Someone reconnected under a new connectionId: leave their row alone.
+            if (!isConditionalCheckFailed(error)) throw error;
+        }
     }
 
     async deleteRoom(roomId: string): Promise<void> {
