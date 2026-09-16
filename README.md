@@ -17,3 +17,15 @@ Tests are written using Jest and can be found in the `tests` directory.
 
 - `tests/functions` contains unit tests for the functions in `src/functions`
 - `tests/integration` contains integration tests for the API endpoints
+
+## Local development
+
+```sh
+cd cdk
+npm ci
+npm run dev        # ws://localhost:8787, in-memory, no JWT verification
+npm test           # vitest
+npm run typecheck
+```
+
+Point the frontend at it with `NEXT_PUBLIC_WS_URL=ws://localhost:8787`.
