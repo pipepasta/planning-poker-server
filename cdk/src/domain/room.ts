@@ -73,13 +73,19 @@ export const join = (
                 : p,
         );
     }
-    return {
-        ...room,
-        participants: [
-            ...room.participants,
-            { ...input, vote: null, joinedAt: now },
-        ],
-    };
+    // A new participant changes the room, so bump `updatedAt`: the persistence
+    // layer locks on it to detect concurrent writers.
+    return withMeta(
+        {
+            ...room,
+            participants: [
+                ...room.participants,
+                { ...input, vote: null, joinedAt: now },
+            ],
+        },
+        {},
+        now,
+    );
 };
 
 export const leave = (room: Room, clientId: string): Room => ({

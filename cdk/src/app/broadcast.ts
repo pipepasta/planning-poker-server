@@ -39,7 +39,7 @@ export const broadcastRoom = async (
         );
     }
     if (cleaned.participants.length === 0) {
-        await ctx.repo.deleteRoom(room.meta.id);
+        await ctx.repo.deleteRoom(room.meta.id, room.meta.updatedAt);
         return cleaned;
     }
     await sendToAll(ctx, cleaned, roomMessage(ctx, cleaned));

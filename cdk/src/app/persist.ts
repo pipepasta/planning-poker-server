@@ -13,13 +13,16 @@ export const persistRoom = async (
     after: Room,
 ): Promise<void> => {
     if (isEmpty(after)) {
-        await repo.deleteRoom(after.meta.id);
+        // A room only becomes empty by losing participants, so `before` is set.
+        if (before !== null)
+            await repo.deleteRoom(after.meta.id, before.meta.updatedAt);
         return;
     }
     const metaChanged =
         before === null ||
         JSON.stringify(before.meta) !== JSON.stringify(after.meta);
-    if (metaChanged) await repo.saveMeta(after.meta);
+    if (metaChanged)
+        await repo.saveMeta(after.meta, before?.meta.updatedAt ?? null);
 
     const beforeById = new Map(
         (before?.participants ?? []).map((p) => [p.clientId, p]),

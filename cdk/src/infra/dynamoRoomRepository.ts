@@ -6,7 +6,11 @@ import {
     PutCommand,
     QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
-import type { Membership, RoomRepository } from "../app/ports";
+import {
+    type Membership,
+    type RoomRepository,
+    StaleRoomError,
+} from "../app/ports";
 import { isDeckId } from "../domain/deck";
 import type { Participant, Room, RoomMeta } from "../domain/room";
 
@@ -83,22 +87,39 @@ export class DynamoRoomRepository implements RoomRepository {
         return { meta: toMeta(roomId, metaItem), participants };
     }
 
-    async saveMeta(meta: RoomMeta): Promise<void> {
-        await this.client.send(
-            new PutCommand({
-                TableName: this.tableName,
-                Item: {
-                    roomId: meta.id,
-                    clientId: ROOM_META_SK,
-                    deckId: meta.deckId,
-                    phase: meta.phase,
-                    timerStatus: meta.timer.status,
-                    timerStartedAt: meta.timer.startedAt,
-                    timerAccumulatedMs: meta.timer.accumulatedMs,
-                    updatedAt: meta.updatedAt,
-                },
-            }),
-        );
+    async saveMeta(
+        meta: RoomMeta,
+        expectedUpdatedAt: number | null,
+    ): Promise<void> {
+        const condition =
+            expectedUpdatedAt === null
+                ? { ConditionExpression: "attribute_not_exists(clientId)" }
+                : {
+                      ConditionExpression: "updatedAt = :prev",
+                      ExpressionAttributeValues: { ":prev": expectedUpdatedAt },
+                  };
+        try {
+            await this.client.send(
+                new PutCommand({
+                    TableName: this.tableName,
+                    Item: {
+                        roomId: meta.id,
+                        clientId: ROOM_META_SK,
+                        deckId: meta.deckId,
+                        phase: meta.phase,
+                        timerStatus: meta.timer.status,
+                        timerStartedAt: meta.timer.startedAt,
+                        timerAccumulatedMs: meta.timer.accumulatedMs,
+                        updatedAt: meta.updatedAt,
+                    },
+                    ...condition,
+                }),
+            );
+        } catch (error) {
+            if (isConditionalCheckFailed(error))
+                throw new StaleRoomError(meta.id);
+            throw error;
+        }
     }
 
     async saveParticipant(roomId: string, p: Participant): Promise<void> {
@@ -143,10 +164,25 @@ export class DynamoRoomRepository implements RoomRepository {
         }
     }
 
-    async deleteRoom(roomId: string): Promise<void> {
+    async deleteRoom(roomId: string, expectedUpdatedAt: number): Promise<void> {
         const items = await this.queryRoomItems(roomId);
-        for (let i = 0; i < items.length; i += 25) {
-            const chunk = items.slice(i, i + 25);
+        try {
+            await this.client.send(
+                new DeleteCommand({
+                    TableName: this.tableName,
+                    Key: { roomId, clientId: ROOM_META_SK },
+                    ConditionExpression: "updatedAt = :prev",
+                    ExpressionAttributeValues: { ":prev": expectedUpdatedAt },
+                }),
+            );
+        } catch (error) {
+            if (isConditionalCheckFailed(error))
+                throw new StaleRoomError(roomId);
+            throw error;
+        }
+        const participants = items.filter((i) => i.clientId !== ROOM_META_SK);
+        for (let i = 0; i < participants.length; i += 25) {
+            const chunk = participants.slice(i, i + 25);
             await this.client.send(
                 new BatchWriteCommand({
                     RequestItems: {

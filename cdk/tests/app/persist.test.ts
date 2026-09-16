@@ -30,9 +30,9 @@ describe("persistRoom", () => {
                 calls.push(`p:${p.clientId}`);
                 return repo.saveParticipant(roomId, p as never);
             },
-            saveMeta: async (meta: never) => {
+            saveMeta: async (meta: never, expectedUpdatedAt: number | null) => {
                 calls.push("meta");
-                return repo.saveMeta(meta);
+                return repo.saveMeta(meta, expectedUpdatedAt);
             },
         });
         await persistRoom(spy, before, after);

@@ -1,4 +1,8 @@
-import type { Membership, RoomRepository } from "../app/ports";
+import {
+    type Membership,
+    type RoomRepository,
+    StaleRoomError,
+} from "../app/ports";
 import type { Participant, Room, RoomMeta } from "../domain/room";
 
 export class InMemoryRoomRepository implements RoomRepository {
@@ -17,8 +21,13 @@ export class InMemoryRoomRepository implements RoomRepository {
         };
     }
 
-    async saveMeta(meta: RoomMeta): Promise<void> {
+    async saveMeta(
+        meta: RoomMeta,
+        expectedUpdatedAt: number | null,
+    ): Promise<void> {
         const existing = this.rooms.get(meta.id);
+        const actual = existing ? existing.meta.updatedAt : null;
+        if (actual !== expectedUpdatedAt) throw new StaleRoomError(meta.id);
         this.rooms.set(meta.id, {
             meta,
             participants: existing?.participants ?? [],
@@ -62,7 +71,10 @@ export class InMemoryRoomRepository implements RoomRepository {
         });
     }
 
-    async deleteRoom(roomId: string): Promise<void> {
+    async deleteRoom(roomId: string, expectedUpdatedAt: number): Promise<void> {
+        const existing = this.rooms.get(roomId);
+        if (!existing || existing.meta.updatedAt !== expectedUpdatedAt)
+            throw new StaleRoomError(roomId);
         this.rooms.delete(roomId);
     }
 

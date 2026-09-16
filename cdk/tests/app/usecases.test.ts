@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { AppContext } from "../../src/app/ports";
+import { type AppContext, StaleRoomError } from "../../src/app/ports";
 import {
     changeDeckUsecase,
     joinRoomUsecase,
@@ -10,6 +10,7 @@ import {
     submitCardUsecase,
     timerUsecase,
 } from "../../src/app/usecases";
+import type { Room } from "../../src/domain/room";
 import { InMemoryRoomRepository } from "../../src/infra/inMemoryRoomRepository";
 import { FakeBroadcaster } from "../helpers/fakeBroadcaster";
 
@@ -149,5 +150,109 @@ describe("voting flow", () => {
             emoji: "👍",
             from: { clientId: "a", name: "Ann" },
         });
+    });
+});
+
+/**
+ * Hands out `stale` for the first `getRoom`, then the real state: the shape a
+ * concurrent writer produces between our read and our conditional write.
+ */
+const staleOnce = (
+    repo: InMemoryRoomRepository,
+    stale: Room,
+): InMemoryRoomRepository => {
+    let served = false;
+    return Object.assign(Object.create(repo), {
+        getRoom: async (roomId: string) => {
+            if (served) return repo.getRoom(roomId);
+            served = true;
+            return stale;
+        },
+    });
+};
+
+describe("concurrent updates", () => {
+    beforeEach(async () => {
+        await joinRoomUsecase(ctx, A, { roomId: "r1", name: "Ann" });
+        await joinRoomUsecase(ctx, B, { roomId: "r1", name: "Bob" });
+    });
+
+    it("retries a vote that raced the other last vote and still reveals", async () => {
+        const stale = await repo.getRoom("r1");
+        if (!stale) throw new Error("no room");
+
+        clock = 2000;
+        await submitCardUsecase(ctx, B, { roomId: "r1", card: "8" });
+
+        clock = 3000;
+        await submitCardUsecase({ ...ctx, repo: staleOnce(repo, stale) }, A, {
+            roomId: "r1",
+            card: "5",
+        });
+
+        const stored = await repo.getRoom("r1");
+        expect(stored?.meta.phase).toBe("revealed");
+        expect(stored?.participants.map((p) => p.vote)).toEqual(["5", "8"]);
+        const msg = lastRoomMessageTo("ca");
+        expect(msg.room.phase).toBe("revealed");
+        expect(msg.room.participants.map((p) => p.vote)).toEqual(["5", "8"]);
+    });
+
+    it("keeps a concurrent pause when the vote is retried", async () => {
+        const stale = await repo.getRoom("r1");
+        if (!stale) throw new Error("no room");
+
+        clock = 2000;
+        await timerUsecase(ctx, B, { roomId: "r1", action: "pauseTimer" });
+
+        clock = 3000;
+        await submitCardUsecase({ ...ctx, repo: staleOnce(repo, stale) }, A, {
+            roomId: "r1",
+            card: "5",
+        });
+
+        const stored = await repo.getRoom("r1");
+        expect(stored?.meta.timer.status).toBe("paused");
+        expect(stored?.participants.find((p) => p.clientId === "a")?.vote).toBe(
+            "5",
+        );
+    });
+
+    it("gives up with an internal error after repeated conflicts", async () => {
+        const alwaysStale: InMemoryRoomRepository = Object.assign(
+            Object.create(repo),
+            {
+                saveMeta: async () => {
+                    throw new StaleRoomError("r1");
+                },
+            },
+        );
+        clock = 2000;
+        await submitCardUsecase({ ...ctx, repo: alwaysStale }, A, {
+            roomId: "r1",
+            card: "5",
+        });
+        expect(broadcaster.messagesTo("ca").at(-1)).toMatchObject({
+            type: "error",
+            code: "internal",
+        });
+    });
+
+    it("deletes an orphaned membership row when the room is gone", async () => {
+        const deleted: unknown[][] = [];
+        const orphaned: InMemoryRoomRepository = Object.assign(
+            Object.create(repo),
+            {
+                findMemberships: async () => [
+                    { roomId: "r9", connectionId: "ca" },
+                ],
+                getRoom: async () => null,
+                deleteParticipant: async (...args: unknown[]) => {
+                    deleted.push(args);
+                },
+            },
+        );
+        await leaveUsecase({ ...ctx, repo: orphaned }, A);
+        expect(deleted).toEqual([["r9", "a", "ca"]]);
     });
 });

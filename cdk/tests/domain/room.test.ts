@@ -51,6 +51,13 @@ describe("room", () => {
         });
     });
 
+    it("join bumps updatedAt for a newcomer but not for a re-join", () => {
+        const room = twoPeople();
+        expect(room.meta.updatedAt).toBe(200);
+        const rejoined = join(room, { ...p(2), connectionId: "connY" }, 500);
+        expect(rejoined.meta.updatedAt).toBe(200);
+    });
+
     it("leave removes the participant", () => {
         const room = leave(twoPeople(), "c1");
         expect(room.participants.map((x) => x.clientId)).toEqual(["c2"]);
