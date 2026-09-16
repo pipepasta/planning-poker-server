@@ -1,10 +1,14 @@
 import type { Room } from "../domain/room";
 import type { RoomSnapshot, SnapshotParticipant } from "../protocol/messages";
 
-export const toSnapshot = (room: Room): RoomSnapshot => {
+/**
+ * Builds the room view for one recipient. While voting, only `forClientId`
+ * sees their own card; once revealed, everyone's card is included.
+ */
+export const toSnapshot = (room: Room, forClientId?: string): RoomSnapshot => {
     const revealed = room.meta.phase === "revealed";
     const participants: SnapshotParticipant[] = room.participants.map((p) =>
-        revealed
+        revealed || p.clientId === forClientId
             ? {
                   clientId: p.clientId,
                   name: p.name,

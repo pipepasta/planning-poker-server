@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { broadcastRoom, sendError } from "../../src/app/broadcast";
 import { persistRoom } from "../../src/app/persist";
-import { createRoom, join } from "../../src/domain/room";
+import { createRoom, join, vote } from "../../src/domain/room";
 import { InMemoryRoomRepository } from "../../src/infra/inMemoryRoomRepository";
 import { FakeBroadcaster } from "../helpers/fakeBroadcaster";
 
@@ -29,6 +29,36 @@ describe("broadcastRoom", () => {
         expect(
             msg.type === "room" && msg.room.participants.map((p) => p.clientId),
         ).toEqual(["a", "b"]);
+    });
+
+    it("gives each recipient their own card and nobody else's", async () => {
+        const repo = new InMemoryRoomRepository();
+        const broadcaster = new FakeBroadcaster();
+        let room = join(
+            join(
+                createRoom("r1", 0),
+                { clientId: "a", connectionId: "ca", name: "A" },
+                0,
+            ),
+            { clientId: "b", connectionId: "cb", name: "B" },
+            0,
+        );
+        room = (vote(room, "a", "8", 10) as { ok: true; value: typeof room })
+            .value;
+        await persistRoom(repo, null, room);
+
+        await broadcastRoom({ repo, broadcaster, now: () => 0 }, room);
+
+        const toA = broadcaster.messagesTo("ca")[0];
+        expect(toA.type === "room" && toA.room.participants).toEqual([
+            { clientId: "a", name: "A", hasVoted: true, vote: "8" },
+            { clientId: "b", name: "B", hasVoted: false },
+        ]);
+        const toB = broadcaster.messagesTo("cb")[0];
+        expect(toB.type === "room" && toB.room.participants).toEqual([
+            { clientId: "a", name: "A", hasVoted: true },
+            { clientId: "b", name: "B", hasVoted: false, vote: null },
+        ]);
     });
 
     it("removes gone connections and re-sends to the rest", async () => {

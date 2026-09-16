@@ -23,6 +23,14 @@ describe("toSnapshot", () => {
         expect(JSON.stringify(s)).not.toContain('"vote"');
     });
 
+    it("shows a voter their own card while voting", () => {
+        const s = toSnapshot(base(), "a");
+        expect(s.participants).toEqual([
+            { clientId: "a", name: "A", hasVoted: true, vote: "8" },
+            { clientId: "b", name: "B", hasVoted: false },
+        ]);
+    });
+
     it("includes votes once revealed", () => {
         const s = toSnapshot(reveal(base(), 20));
         expect(s.participants).toEqual([

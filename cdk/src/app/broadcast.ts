@@ -3,25 +3,28 @@ import type { ErrorCode, ServerMessage } from "../protocol/messages";
 import type { AppContext } from "./ports";
 import { toSnapshot } from "./snapshot";
 
+/** Sends a per-recipient message to everyone; returns the gone participants. */
 const sendToAll = async (
     ctx: AppContext,
     room: Room,
-    message: ServerMessage,
+    message: (recipient: Participant) => ServerMessage,
 ): Promise<Participant[]> => {
     const results = await Promise.all(
         room.participants.map(async (p) => ({
             participant: p,
-            status: await ctx.broadcaster.send(p.connectionId, message),
+            status: await ctx.broadcaster.send(p.connectionId, message(p)),
         })),
     );
     return results.filter((r) => r.status === "gone").map((r) => r.participant);
 };
 
-const roomMessage = (ctx: AppContext, room: Room): ServerMessage => ({
-    type: "room",
-    serverTime: ctx.now(),
-    room: toSnapshot(room),
-});
+const roomMessage =
+    (ctx: AppContext, room: Room) =>
+    (recipient: Participant): ServerMessage => ({
+        type: "room",
+        serverTime: ctx.now(),
+        room: toSnapshot(room, recipient.clientId),
+    });
 
 export const broadcastRoom = async (
     ctx: AppContext,
@@ -52,7 +55,7 @@ export const broadcastReaction = async (
     emoji: string,
     from: { clientId: string; name: string },
 ): Promise<void> => {
-    await sendToAll(ctx, room, { type: "reaction", emoji, from });
+    await sendToAll(ctx, room, () => ({ type: "reaction", emoji, from }));
 };
 
 export const sendError = async (

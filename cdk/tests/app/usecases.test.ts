@@ -43,7 +43,7 @@ describe("joinRoomUsecase", () => {
         await joinRoomUsecase(ctx, A, { roomId: "r1", name: "Ann" });
         const msg = lastRoomMessageTo("ca");
         expect(msg.room.participants).toEqual([
-            { clientId: "a", name: "Ann", hasVoted: false },
+            { clientId: "a", name: "Ann", hasVoted: false, vote: null },
         ]);
         expect(msg.room.timer).toEqual({
             status: "running",
@@ -91,9 +91,10 @@ describe("voting flow", () => {
 
     it("hides votes until everyone voted, then reveals", async () => {
         await submitCardUsecase(ctx, A, { roomId: "r1", card: "5" });
+        // Bob sees that Ann voted but not what she played; his own card is his.
         expect(lastRoomMessageTo("cb").room.participants).toEqual([
             { clientId: "a", name: "Ann", hasVoted: true },
-            { clientId: "b", name: "Bob", hasVoted: false },
+            { clientId: "b", name: "Bob", hasVoted: false, vote: null },
         ]);
         await submitCardUsecase(ctx, B, { roomId: "r1", card: "8" });
         const msg = lastRoomMessageTo("ca");
