@@ -97,6 +97,13 @@ describe("room", () => {
         expect(room.participants.map((x) => x.vote)).toEqual(["3", "skip"]);
     });
 
+    it("keeps the revealed phase when someone changes their card", () => {
+        const revealed = reveal(twoPeople(), 500);
+        const changed = vote(revealed, "c1", "8", 600);
+        expect(changed.ok && changed.value.meta.phase).toBe("revealed");
+        expect(changed.ok && changed.value.participants[0].vote).toBe("8");
+    });
+
     it("nextRound clears votes, returns to voting and restarts the timer", () => {
         let room = reveal(twoPeople(), 500);
         room = nextRound(room, 900);

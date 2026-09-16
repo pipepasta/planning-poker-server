@@ -66,6 +66,33 @@ describe("joinRoomUsecase", () => {
             lastRoomMessageTo("cb").room.participants.map((p) => p.clientId),
         ).toEqual(["b"]);
     });
+
+    it("re-join keeps the vote and moves the snapshot to the new connection", async () => {
+        await joinRoomUsecase(ctx, A, { roomId: "r1", name: "Ann" });
+        await submitCardUsecase(ctx, A, { roomId: "r1", card: "5" });
+        const beforeRejoin = broadcaster.messagesTo("ca").length;
+
+        clock = 2000;
+        await joinRoomUsecase(
+            ctx,
+            { clientId: "a", connectionId: "ca2" },
+            { roomId: "r1", name: "Ann" },
+        );
+
+        expect((await repo.getRoom("r1"))?.participants).toEqual([
+            {
+                clientId: "a",
+                connectionId: "ca2",
+                name: "Ann",
+                vote: "5",
+                joinedAt: 1000,
+            },
+        ]);
+        expect(broadcaster.messagesTo("ca")).toHaveLength(beforeRejoin);
+        expect(lastRoomMessageTo("ca2").room.participants).toEqual([
+            { clientId: "a", name: "Ann", hasVoted: true, vote: "5" },
+        ]);
+    });
 });
 
 describe("leaveUsecase", () => {
@@ -100,6 +127,19 @@ describe("voting flow", () => {
         const msg = lastRoomMessageTo("ca");
         expect(msg.room.phase).toBe("revealed");
         expect(msg.room.participants.map((p) => p.vote)).toEqual(["5", "8"]);
+    });
+
+    it("broadcasts a changed card immediately while revealed", async () => {
+        await submitCardUsecase(ctx, A, { roomId: "r1", card: "5" });
+        await submitCardUsecase(ctx, B, { roomId: "r1", card: "8" });
+
+        clock = 4000;
+        await submitCardUsecase(ctx, A, { roomId: "r1", card: "13" });
+
+        const msg = lastRoomMessageTo("cb");
+        expect(msg.room.phase).toBe("revealed");
+        expect(msg.room.participants.map((p) => p.vote)).toEqual(["13", "8"]);
+        expect((await repo.getRoom("r1"))?.meta.phase).toBe("revealed");
     });
 
     it("rejects invalid cards and strangers with errors", async () => {
