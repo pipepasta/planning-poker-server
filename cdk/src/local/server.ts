@@ -44,10 +44,8 @@ wss.on("connection", (socket, request) => {
 
     socket.on("message", async (data) => {
         const text = data.toString();
-        if (text === "ping") {
-            socket.send("pong");
-            return;
-        }
+        // Heartbeat: the deployed API Gateway route answers nothing either.
+        if (text === "ping") return;
         console.log("recv", actor.clientId, text);
         await dispatch(ctx, actor, text);
     });
@@ -55,6 +53,10 @@ wss.on("connection", (socket, request) => {
     socket.on("close", async () => {
         console.log("close", actor);
         broadcaster.unregister(actor.connectionId);
-        await leaveUsecase(ctx, actor);
+        try {
+            await leaveUsecase(ctx, actor);
+        } catch (error) {
+            console.error({ message: "leave on close failed", actor, error });
+        }
     });
 });
