@@ -5,6 +5,7 @@ import {
     isCardInDeck,
     SKIP_CARD,
 } from "./deck";
+import { DEFAULT_METRIC_ID, type MetricId } from "./metric";
 import { pauseTimer, resumeTimer, startTimer, type TimerState } from "./timer";
 
 export type Phase = "voting" | "revealed";
@@ -20,6 +21,7 @@ export interface Participant {
 export interface RoomMeta {
     readonly id: string;
     readonly deckId: DeckId;
+    readonly metric: MetricId;
     readonly phase: Phase;
     readonly timer: TimerState;
     readonly updatedAt: number;
@@ -36,6 +38,7 @@ export const createRoom = (id: string, now: number): Room => ({
     meta: {
         id,
         deckId: DEFAULT_DECK_ID,
+        metric: DEFAULT_METRIC_ID,
         phase: "voting",
         timer: startTimer(now),
         updatedAt: now,
@@ -135,6 +138,14 @@ export const nextRound = (room: Room, now: number): Room =>
 
 export const changeDeck = (room: Room, deckId: DeckId, now: number): Room =>
     withMeta(clearVotes(room), { phase: "voting", deckId }, now);
+
+/**
+ * Picks the statistic the whole room reads off the results panel. Unlike
+ * {@link changeDeck} this changes nothing anyone can vote, so votes and the
+ * phase are untouched; only `updatedAt` moves, to keep the write serialised.
+ */
+export const changeMetric = (room: Room, metric: MetricId, now: number): Room =>
+    withMeta(room, { metric }, now);
 
 export const timerAction = (
     room: Room,

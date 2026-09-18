@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     changeDeck,
+    changeMetric,
     createRoom,
     isEmpty,
     join,
@@ -25,6 +26,7 @@ describe("room", () => {
         expect(room.meta).toEqual({
             id: "r1",
             deckId: "fibonacci",
+            metric: "decision",
             phase: "voting",
             timer: { status: "running", startedAt: 100, accumulatedMs: 0 },
             updatedAt: 100,
@@ -123,6 +125,21 @@ describe("room", () => {
         expect(room.meta.phase).toBe("voting");
         expect(room.participants.every((x) => x.vote === null)).toBe(true);
         expect(room.meta.timer.startedAt).toBe(100);
+    });
+
+    it("changeMetric updates the meta and keeps every vote and the phase", () => {
+        let room = twoPeople();
+        room = (vote(room, "c1", "3", 300) as { ok: true; value: typeof room })
+            .value;
+        room = reveal(room, 500);
+        const changed = changeMetric(room, "average", 900);
+        expect(changed.meta.metric).toBe("average");
+        expect(changed.meta.phase).toBe("revealed");
+        expect(changed.participants.map((x) => x.vote)).toEqual(["3", "skip"]);
+        expect(changed.meta.deckId).toBe("fibonacci");
+        expect(changed.meta.timer).toEqual(room.meta.timer);
+        // The optimistic lock serialises on updatedAt, so it still has to move.
+        expect(changed.meta.updatedAt).toBe(900);
     });
 
     it("timerAction pauses, resumes and resets", () => {

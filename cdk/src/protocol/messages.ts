@@ -1,4 +1,5 @@
 import { type DeckId, isDeckId } from "../domain/deck";
+import { isMetricId, type MetricId } from "../domain/metric";
 import type { Phase, Result } from "../domain/room";
 import type { TimerState } from "../domain/timer";
 
@@ -11,13 +12,15 @@ export type ClientMessage =
     | { action: "resetRoom"; roomId: string }
     | { action: TimerActionName; roomId: string }
     | { action: "reaction"; roomId: string; emoji: string }
-    | { action: "changeDeck"; roomId: string; deckId: DeckId };
+    | { action: "changeDeck"; roomId: string; deckId: DeckId }
+    | { action: "changeMetric"; roomId: string; metric: MetricId };
 
 export type ErrorCode =
     | "invalid_message"
     | "not_in_room"
     | "invalid_card"
     | "unknown_deck"
+    | "unknown_metric"
     | "invalid_name"
     | "invalid_room_id"
     | "internal";
@@ -32,6 +35,7 @@ export interface SnapshotParticipant {
 export interface RoomSnapshot {
     id: string;
     deckId: DeckId;
+    metric: MetricId;
     phase: Phase;
     timer: TimerState;
     participants: SnapshotParticipant[];
@@ -110,6 +114,10 @@ export const parseClientMessage = (
             return isDeckId(raw.deckId)
                 ? ok({ action: "changeDeck", roomId, deckId: raw.deckId })
                 : fail("unknown_deck");
+        case "changeMetric":
+            return isMetricId(raw.metric)
+                ? ok({ action: "changeMetric", roomId, metric: raw.metric })
+                : fail("unknown_metric");
         default:
             return TIMER_ACTIONS.includes(raw.action)
                 ? ok({ action: raw.action as TimerActionName, roomId })

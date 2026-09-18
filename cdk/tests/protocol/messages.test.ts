@@ -55,6 +55,16 @@ describe("parseClientMessage", () => {
             ok: true,
             value: { action: "changeDeck", roomId: "abc", deckId: "tshirt" },
         });
+        expect(
+            parseClientMessage({
+                action: "changeMetric",
+                roomId: "abc",
+                metric: "average",
+            }),
+        ).toEqual({
+            ok: true,
+            value: { action: "changeMetric", roomId: "abc", metric: "average" },
+        });
     });
 
     it("rejects malformed input with specific codes", () => {
@@ -106,6 +116,16 @@ describe("parseClientMessage", () => {
                 deckId: "poker",
             }),
         ).toEqual({ ok: false, error: "unknown_deck" });
+        expect(
+            parseClientMessage({
+                action: "changeMetric",
+                roomId: "abc",
+                metric: "median",
+            }),
+        ).toEqual({ ok: false, error: "unknown_metric" });
+        expect(
+            parseClientMessage({ action: "changeMetric", roomId: "abc" }),
+        ).toEqual({ ok: false, error: "unknown_metric" });
         expect(
             parseClientMessage({
                 action: "reaction",
