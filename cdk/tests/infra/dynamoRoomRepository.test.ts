@@ -29,6 +29,7 @@ describe("DynamoRoomRepository.getRoom", () => {
                             roomId: "r1",
                             clientId: "#ROOM",
                             deckId: "tshirt",
+                            metric: "mode",
                             phase: "voting",
                             timerStatus: "paused",
                             timerStartedAt: null,
@@ -54,6 +55,7 @@ describe("DynamoRoomRepository.getRoom", () => {
             meta: {
                 id: "r1",
                 deckId: "tshirt",
+                metric: "mode",
                 phase: "voting",
                 timer: {
                     status: "paused",
@@ -79,6 +81,26 @@ describe("DynamoRoomRepository.getRoom", () => {
                 },
             ],
         });
+    });
+
+    it("defaults the metric for a #ROOM item written before the setting", async () => {
+        const repo = new DynamoRoomRepository({
+            send: async () => ({
+                Items: [
+                    {
+                        roomId: "r1",
+                        clientId: "#ROOM",
+                        deckId: "fibonacci",
+                        phase: "voting",
+                        timerStatus: "running",
+                        timerStartedAt: 5,
+                        timerAccumulatedMs: 0,
+                        updatedAt: 5,
+                    },
+                ],
+            }),
+        });
+        expect((await repo.getRoom("r1"))?.meta.metric).toBe("decision");
     });
 
     it("returns null without a meta item", async () => {
@@ -180,6 +202,7 @@ class FakeDynamo {
 const meta = (updatedAt: number): RoomMeta => ({
     id: "r1",
     deckId: "tshirt",
+    metric: "average",
     phase: "revealed",
     timer: { status: "paused", startedAt: null, accumulatedMs: 750 },
     updatedAt,

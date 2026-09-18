@@ -20,6 +20,7 @@ export const toSnapshot = (room: Room, forClientId?: string): RoomSnapshot => {
     return {
         id: room.meta.id,
         deckId: room.meta.deckId,
+        metric: room.meta.metric,
         phase: room.meta.phase,
         timer: room.meta.timer,
         participants,

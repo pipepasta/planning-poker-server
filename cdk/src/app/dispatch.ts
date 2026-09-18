@@ -4,6 +4,7 @@ import type { AppContext } from "./ports";
 import {
     type Actor,
     changeDeckUsecase,
+    changeMetricUsecase,
     joinRoomUsecase,
     nextRoundUsecase,
     reactionUsecase,
@@ -56,6 +57,8 @@ export const dispatch = async (
                 });
             case "changeDeck":
                 return await changeDeckUsecase(ctx, actor, msg);
+            case "changeMetric":
+                return await changeMetricUsecase(ctx, actor, msg);
             case "reaction":
                 return await reactionUsecase(ctx, actor, msg);
         }

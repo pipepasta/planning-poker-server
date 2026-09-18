@@ -12,6 +12,7 @@ import {
     StaleRoomError,
 } from "../app/ports";
 import { isDeckId } from "../domain/deck";
+import { DEFAULT_METRIC_ID, isMetricId } from "../domain/metric";
 import type { Participant, Room, RoomMeta } from "../domain/room";
 
 export const ROOM_META_SK = "#ROOM";
@@ -35,6 +36,8 @@ const isConditionalCheckFailed = (error: unknown): boolean =>
 const toMeta = (roomId: string, item: Item): RoomMeta => ({
     id: roomId,
     deckId: isDeckId(item.deckId) ? item.deckId : "fibonacci",
+    // Rooms written before the metric setting existed have no attribute.
+    metric: isMetricId(item.metric) ? item.metric : DEFAULT_METRIC_ID,
     phase: item.phase === "revealed" ? "revealed" : "voting",
     timer: {
         status: item.timerStatus === "paused" ? "paused" : "running",
@@ -106,6 +109,7 @@ export class DynamoRoomRepository implements RoomRepository {
                         roomId: meta.id,
                         clientId: ROOM_META_SK,
                         deckId: meta.deckId,
+                        metric: meta.metric,
                         phase: meta.phase,
                         timerStatus: meta.timer.status,
                         timerStartedAt: meta.timer.startedAt,

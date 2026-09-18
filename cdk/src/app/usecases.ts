@@ -1,6 +1,8 @@
 import type { DeckId } from "../domain/deck";
+import type { MetricId } from "../domain/metric";
 import {
     changeDeck,
+    changeMetric,
     createRoom,
     isMember,
     join,
@@ -220,6 +222,22 @@ export const changeDeckUsecase = (
         actor,
         input.roomId,
         byMember(actor, (room) => changeDeck(room, input.deckId, ctx.now())),
+    );
+
+/**
+ * Changes the statistic the room shows. Deliberately not `changeDeckUsecase`:
+ * this one keeps everybody's votes and the current phase.
+ */
+export const changeMetricUsecase = (
+    ctx: AppContext,
+    actor: Actor,
+    input: { roomId: string; metric: MetricId },
+): Promise<void> =>
+    runTransition(
+        ctx,
+        actor,
+        input.roomId,
+        byMember(actor, (room) => changeMetric(room, input.metric, ctx.now())),
     );
 
 export const reactionUsecase = async (

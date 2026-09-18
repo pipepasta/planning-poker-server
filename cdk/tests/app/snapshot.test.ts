@@ -43,5 +43,6 @@ describe("toSnapshot", () => {
             accumulatedMs: 0,
         });
         expect(s.deckId).toBe("fibonacci");
+        expect(s.metric).toBe("decision");
     });
 });

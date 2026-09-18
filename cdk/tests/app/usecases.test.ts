@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { type AppContext, StaleRoomError } from "../../src/app/ports";
 import {
     changeDeckUsecase,
+    changeMetricUsecase,
     joinRoomUsecase,
     leaveUsecase,
     nextRoundUsecase,
@@ -182,6 +183,29 @@ describe("voting flow", () => {
             startedAt: null,
             accumulatedMs: 1000,
         });
+    });
+
+    it("changeMetric reaches everyone without losing a vote or the reveal", async () => {
+        await submitCardUsecase(ctx, A, { roomId: "r1", card: "5" });
+        await submitCardUsecase(ctx, B, { roomId: "r1", card: "8" });
+        expect(lastRoomMessageTo("ca").room.metric).toBe("decision");
+
+        clock = 7000;
+        await changeMetricUsecase(ctx, B, { roomId: "r1", metric: "average" });
+
+        for (const connectionId of ["ca", "cb"]) {
+            const msg = lastRoomMessageTo(connectionId);
+            expect(msg.room.metric).toBe("average");
+            expect(msg.room.phase).toBe("revealed");
+            expect(msg.room.participants.map((p) => p.vote)).toEqual([
+                "5",
+                "8",
+            ]);
+        }
+        const stored = await repo.getRoom("r1");
+        expect(stored?.meta.metric).toBe("average");
+        expect(stored?.meta.phase).toBe("revealed");
+        expect(stored?.participants.map((p) => p.vote)).toEqual(["5", "8"]);
     });
 
     it("reaction is broadcast with the sender name", async () => {
