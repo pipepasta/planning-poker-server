@@ -1,7 +1,7 @@
 # planning-poker-server
 
 A simple planning poker server written in TypeScript using AWS SDK for Node.js.  
-This server is intended to be used with the [planning-poker-front](https://github.com/macaroni10y/planning-poker-front-nextjs).
+This server is intended to be used with the [planning-poker-front](https://github.com/pipepasta/planning-poker-front-nextjs).
 
 ## Hosting
 
